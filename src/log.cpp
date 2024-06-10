@@ -8,6 +8,9 @@
 #include "Utils/Process.h"
 #include "Utils/Defer.h"
 #include "convar.h"
+#include <memory>
+
+#include "defer.hpp"
 #include "log.hpp"
 
 static constexpr std::string_view GetLogPriorityText( LogPriority ePriority )

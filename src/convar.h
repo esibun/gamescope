@@ -182,6 +182,11 @@ namespace gamescope
         T  operator & (T other) { return m_Value & other; }
         T &operator &=(T other) { return m_Value &= other; }
 
+        T  operator | (T other) { return m_Value | other; }
+        T &operator |=(T other) { return m_Value |= other; }
+        T  operator & (T other) { return m_Value & other; }
+        T &operator &=(T other) { return m_Value &= other; }
+
         void InvokeFunc( std::span<std::string_view> pArgs )
         {
             if ( pArgs.size() == 1 )

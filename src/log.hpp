@@ -6,6 +6,8 @@
 #include <memory>
 #include <functional>
 #include <string_view>
+#include <stdint.h>
+#include <functional>
 
 #ifdef __GNUC__
 #define ATTRIB_PRINTF(start, end) __attribute__((format(printf, start, end)))
