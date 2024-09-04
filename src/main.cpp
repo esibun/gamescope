@@ -656,10 +656,14 @@ bool g_bRt = false;
 int g_argc;
 char **g_argv;
 
+void TestConfig();
+
 int main(int argc, char **argv)
 {
 	g_argc = argc;
 	g_argv = argv;
+	
+	TestConfig();
 
 	// Force disable this horrible broken layer.
 	setenv("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1", 1);
