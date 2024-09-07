@@ -20,6 +20,7 @@
 #include "WaylandServer/WaylandProtocol.h"
 #include "WaylandServer/LinuxDrmSyncobj.h"
 #include "WaylandServer/Reshade.h"
+#include "WaylandServer/GamescopeActionBinding.h"
 
 #include "wlr_begin.hpp"
 #include <wlr/backend.h>
@@ -307,6 +308,9 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 	}
 #endif
 
+	// TODO: Remove the below hack when Steam is shipping
+	// `gamescope_action_binding_manager` in Steam Stable
+	// as it can just use a keybind to grab these always.
 	bool forbidden_key =
 		keysym == XKB_KEY_XF86AudioLowerVolume ||
 		keysym == XKB_KEY_XF86AudioRaiseVolume ||
@@ -326,10 +330,7 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 		}
 	}
 
-	wlr_seat_set_keyboard( wlserver.wlr.seat, keyboard->wlr );
-	wlr_seat_keyboard_notify_key( wlserver.wlr.seat, event->time_msec, event->keycode, event->state );
-
-	bump_input_counter();
+	wlserver_key( event->keycode, event->state == WL_KEYBOARD_KEY_STATE_PRESSED, event->time_msec );
 }
 
 static void wlserver_perform_rel_pointer_motion(double unaccel_dx, double unaccel_dy)
@@ -1746,6 +1747,8 @@ bool wlserver_init( void ) {
 
 	create_reshade();
 
+	new gamescope::WaylandServer::CGamescopeActionBindingProtocol( wlserver.display );
+
 	create_gamescope_xwayland();
 
 	create_gamescope_swapchain_factory_v2();
@@ -2039,8 +2042,50 @@ void wlserver_key( uint32_t key, bool press, uint32_t time )
 {
 	assert( wlserver_is_lock_held() );
 
-	assert( wlserver.wlr.virtual_keyboard_device != nullptr );
-	wlr_seat_set_keyboard( wlserver.wlr.seat, wlserver.wlr.virtual_keyboard_device );
+	wlr_keyboard *keyboard = wlserver.wlr.virtual_keyboard_device;
+
+	{
+		xkb_keycode_t keycode = key + 8;
+		xkb_keysym_t keysym = xkb_state_key_get_one_sym( keyboard->xkb_state, keycode );
+
+		static std::unordered_set<xkb_keysym_t> s_setPressedKeySyms;
+		if ( press )
+		{
+			s_setPressedKeySyms.emplace( keysym );
+		}
+		else
+		{
+			s_setPressedKeySyms.erase( keysym );
+		}
+
+		{
+			using namespace gamescope::WaylandServer;
+
+			std::span<CGamescopeActionBinding *> ppBindings = CGamescopeActionBinding::GetBindings();
+
+			for ( CGamescopeActionBinding *pBinding : ppBindings )
+			{
+				if ( !pBinding->IsArmed() )
+					continue;
+
+				std::span<Keybind_t> pKeybinds = pBinding->GetKeyboardTriggers();
+				for ( const Keybind_t &keybind : pKeybinds )
+				{
+					if ( !pBinding->IsArmed() )
+						break;
+
+					if ( s_setPressedKeySyms != keybind.setKeySyms )
+						continue;
+
+					if ( pBinding->Execute() )
+						return;
+				}
+			}
+		}
+	}
+
+	assert( keyboard != nullptr );
+	wlr_seat_set_keyboard( wlserver.wlr.seat, keyboard );
 	wlr_seat_keyboard_notify_key( wlserver.wlr.seat, time, key, press );
 
 	bump_input_counter();
